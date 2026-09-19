@@ -29,8 +29,8 @@
 
 ## Chunking Strategy
 
-**Chunk size:**
-**Overlap:**
+**Chunk size:** 400
+**Overlap:** 60
 
 <!-- What about YOUR documents made you pick these numbers? Short posts and
      long sectioned guides don't want the same chunking, and "800 seemed
@@ -41,6 +41,64 @@
      more than pretending you got it right first time.
 
      Milestone 3. -->
+
+To compare candidate `(CHUNK_SIZE, CHUNK_OVERLAP)` pairs against real chunk
+content instead of guessing, `chunk_size_sweep.py` builds an index variant per
+pair and saves every retrieved chunk, in full, to `my_runs/`:
+
+```
+python chunk_size_sweep.py
+```
+
+This runs the four pairs currently in `PARAM_PAIRS` — `(800, 120)`,
+`(400, 60)`, `(300, 45)`, `(200, 30)` — against the 5 questions in
+`questions.py`, and writes one file per pair:
+
+```
+my_runs/cs800_ov120.md
+my_runs/cs400_ov60.md
+my_runs/cs300_ov45.md
+my_runs/cs200_ov30.md
+```
+
+Edit `PARAM_PAIRS` at the top of the file to try other combinations. No
+`GEMINI_API_KEY` is needed — it's retrieval only, no model call.
+
+**Why 400/60, out of the four pairs tested:**
+
+The Milestone 3 test is "could someone answer a question using only this,
+without reading what came before or after?" — I read every chunk in each of
+the four `my_runs/` files against that test before looking at distances.
+`(300, 45)` and `(200, 30)` fail it constantly: most of their chunks start or
+end mid-sentence or mid-word (e.g. a Halden Bay chunk in
+`my_runs/cs200_ov30.md` that opens on "o 2 and 6 to 8:30 and there is nowhere
+to eat," with no readable subject). At 400 characters, most chunks hold one
+complete paragraph instead of a slice of one — this matches the corpus
+directly: 115 paragraphs measured across the 14 guides average 233
+characters, longest 451, so a 400-char window is sized to hold a whole
+paragraph rather than cut through it. `(800, 120)` also passes this
+readability test, since its chunks are large enough to hold a full paragraph
+too, but that's exactly its problem below.
+
+On the numbers, `(800, 120)` is the only pair that fails outright: for "What
+region hub does every train go through," its own top-ranked chunk is the
+correct Marchwood intro, but merging that intro with unrelated paragraphs into
+one 800-char window dilutes the embedding enough that the best distance
+(0.673) misses the 0.6 gate cutoff — the system refuses to answer a question
+the corpus clearly covers. `(400, 60)`, `(300, 45)`, and `(200, 30)` all pass
+the gate on every one of the 5 real questions (best distances 0.452–0.479 on
+that same question, see `my_runs/`).
+
+So `(400, 60)` is the only pair of the four that both reads as complete
+thoughts and passes the gate on every real question.
+
+One honest gap this sweep didn't fix at any size: none of the four pairs
+retrieve the actual answer to "what time of year is Pellew Sands mostly
+closed" (`guide_pellew_sands.md`'s "Winter is bleak, largely closed") in the
+top 5 — all four instead surface a decoy sentence about Givens Mill closing
+in winter. That miss is identical at 800, 400, 300, and 200, so it isn't a
+chunk-size problem in this range; it's a retrieval-ranking issue for a later
+milestone, not a reason to pick a different size here.
 
 ## Sample Chunks
 
@@ -53,30 +111,83 @@
 
      Milestone 3. -->
 
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: `guide_elder_ness.md#0` — produced by: `chunker.py::fallback_split(chunk_size=400, overlap=60)`
 
 ```
+# Elder Ness
+
+Elder Ness is a headland with a village of 300 on it, a lighthouse, a bird observatory, and very little else. People come for one of three reasons — birds, walking, or a deliberate absence of things to do.
+
+## Getting there
+
+A single road in, which floods at the highest spring tides roughly six times a year for about two hours either side of high water. Tide tables are posted at the
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+**Chunk 2** — source: `guide_halden_bay.md#0` — produced by: `chunker.py::fallback_split(chunk_size=400, overlap=60)`
 
 ```
+# Halden Bay
+
+Halden Bay is a working fishing port of 8,000 that has picked up a second life as a weekend destination. The two economies sit somewhat awkwardly beside each other and the town is candid about it.
+
+## Getting there
+
+The coast road is the only approach and it is slow — 40 minutes for 22 miles, with the last stretch cut into the cliff. Buses run four times a day. Parking in the town it
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+**Chunk 3** — source: `guide_kestrelford.md#0` — produced by: `chunker.py::fallback_split(chunk_size=400, overlap=60)`
 
 ```
+# Kestrelford
+
+Kestrelford is a hill town of 12,000, an hour inland from Brightwater. It has been a market town since the 1200s and the street plan has not meaningfully changed since. This is charming on foot and difficult in a car.
+
+## Getting there
+
+No railway station; the line was closed in 1963 and the trackbed is now a walking route. Buses run from Brightwater roughly hourly on weekdays, ever
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+**Chunk 4** — source: `guide_marchwood.md#0` — produced by: `chunker.py::fallback_split(chunk_size=400, overlap=60)`
 
 ```
+# Marchwood
+
+Marchwood is the regional hub — 180,000 people, the junction everyone changes trains at, and a city most visitors pass through rather than stop in. That is a mistake, though an understandable one, since almost nothing of interest is near the station.
+
+## Getting there
+
+Every railway line in the region meets here, which is the city's defining feature. Trains to Brightwater run every 40
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+**Chunk 5** — source: `guide_pellew_sands.md#0` — produced by: `chunker.py::fallback_split(chunk_size=400, overlap=60)`
 
 ```
+# Pellew Sands
+
+Pellew Sands is a Victorian seaside resort that has been through three distinct lives: fashionable, then neglected, and now something in between. The architecture is from the first period and much of the infrastructure from the second.
+
+## Getting there
+
+The branch line runs from the regional hub in 70 minutes, seven times a day, and the station is on the seafront, which is rare an
 ```
+
+**Why these five, and why hand-picked instead of the `-n 5` stride sample:**
+
+The first pass (`python app.py chunks -n 5`) took an evenly-spaced stride across
+all 93 chunks. Two of those five happened to be a document's opening chunk and
+read as complete thoughts; the other three landed mid-document and were cut
+off mid-sentence or mid-heading (one chunk even ended on a bare `##`). Rather
+than leave that to stride luck, these five were chosen with
+`python app.py chunks --indices 29,42,49,56,63` — the global chunk-list
+position of chunk `#0` for five of the nine individual town guides
+(`elder_ness`, `halden_bay`, `kestrelford`, `marchwood`, `pellew_sands`),
+found by counting each document's chunk total in order. A document's `#0`
+chunk always opens with its `# Title` heading plus the full introductory
+paragraph, so it reliably passes the "could someone answer using only this,
+without reading what came before or after?" test at the front — though, as
+with the first sample, the fixed 400-character cutoff still cuts every one of
+these off mid-sentence at the tail, since `fallback_split` doesn't look for a
+sentence boundary before stopping.
 
 ## Sample Answer
 
