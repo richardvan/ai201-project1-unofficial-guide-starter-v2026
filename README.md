@@ -116,7 +116,16 @@
 
      Milestone 5. -->
 
-**1.**
+**1.** I asked Claude to build a permanent tool (`chunk_size_sweep.py`) that
+reruns my five test questions against four `(CHUNK_SIZE, CHUNK_OVERLAP)`
+pairs — (800,120), (400,60), (300,45), (200,30) — each built as its own
+Chroma index variant, and save the full, untruncated retrieved chunks for
+every question into one Markdown file per pair under `my_runs/`, with each
+chunk block labeled by the parameters that produced it so I can copy specific
+chunks out to compare against other configs.
+
+<!-- Fill in once you've run it and picked a size: what did you change about
+     the tool's output or the chunk size you ended up choosing? -->
 
 **2.**
 
