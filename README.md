@@ -21,11 +21,14 @@
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
-
-     Milestone 5. -->
+The Unofficial Guide is a retrieval-augmented Q&A tool built on the
+`city_guides` corpus — 14 sectioned guides to towns in one fictional region
+(getting there, eating, sights, seasons, accessibility). It answers specific,
+single-fact questions a guidebook would actually cover — how to reach a town,
+what's open when, where to eat — by retrieving the most relevant chunks and
+having the model answer only from those, citing the source file. Questions the
+corpus doesn't cover are refused by a relevance gate before any model call is
+made, rather than answered by guesswork.
 
 ## Chunking Strategy
 
@@ -244,27 +247,25 @@ questions with more borderline material.
 
 ## How I Used AI
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
-
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
-
-     Milestone 5. -->
-
 **1.** I asked Claude to build a permanent tool (`chunk_size_sweep.py`) that
 reruns my five test questions against four `(CHUNK_SIZE, CHUNK_OVERLAP)`
 pairs — (800,120), (400,60), (300,45), (200,30) — each built as its own
 Chroma index variant, and save the full, untruncated retrieved chunks for
 every question into one Markdown file per pair under `my_runs/`, with each
 chunk block labeled by the parameters that produced it so I can copy specific
-chunks out to compare against other configs.
+chunks out to compare against other configs. Three of the four pairs
+technically passed the gate, so the numeric output alone didn't decide it — I
+read every chunk in each `my_runs/` file myself and ruled out 300/45 and
+200/30 because their chunks kept starting or ending mid-sentence, which the
+tool doesn't measure automatically. I picked 400/60.
 
-<!-- Fill in once you've run it and picked a size: what did you change about
-     the tool's output or the chunk size you ended up choosing? -->
-
-**2.**
+**2.** For Milestone 4, I asked Claude whether raising `top_k` would fix a
+known miss — the answer to "what time of year is Pellew Sands mostly closed?"
+never showed up in the top 5 retrieved chunks. It ran the same query at
+`--top-k 10` instead of just asserting an answer, and the correct chunk still
+didn't appear — the extra slots filled with progressively less relevant
+material instead. That result is what kept me from bumping `TOP_K` up "to be
+safe"; I left it at 5 and wrote the miss down as a ranking issue instead.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
