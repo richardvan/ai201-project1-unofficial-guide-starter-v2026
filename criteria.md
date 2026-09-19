@@ -57,6 +57,8 @@ in at least 4 of 5 tries.
 
 ## 4. Something about your chunks
 
+
+My retreived chunk sizes averages between 180 to 380 tokens.
 <!-- YOU WRITE THIS ONE.
 
      How would you know if your chunks were the right size? Name something
@@ -72,6 +74,7 @@ in at least 4 of 5 tries.
 
 
 **Why this target:**
+<!-- I picked this range because from the slides, ~280 tokens was specified as the "Just right" value, I wanted there to be flexible lower and upper value so value that fits in this range will be valid-->
 
 
 
@@ -79,6 +82,7 @@ in at least 4 of 5 tries.
 
 ## 5. Your choice
 
+When a question is asked about payment method accepted, 5 out of 5 answers should mention cash.
 <!-- YOU WRITE THIS ONE TOO.
 
      Pick something you actually care about getting right. It could be about
@@ -90,6 +94,7 @@ in at least 4 of 5 tries.
 
 
 **Why this target:**
+I picked 5 out of 5 because all documents for specific cities mentioned that cash is still useful.
 
 
 
