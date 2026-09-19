@@ -191,30 +191,56 @@ sentence boundary before stopping.
 
 ## Sample Answer
 
-<!-- One complete question and answer, pasted as text, with the source line
-     visible. Milestone 4. -->
-
-**Question:**
+**Question:** how do you get to Elder Ness
 
 **Answer:**
 
 ```
+To get to Elder Ness, you take a single road in, which floods at the highest
+spring tides roughly six times a year for about two hours either side of high
+water (from `guide_elder_ness.md`).
 ```
 
-**My relevance cutoff:**
+Source: `guide_elder_ness.md` (produced by `python app.py ask "how do you get
+to Elder Ness"`, best distance 0.318, cutoff 0.65 — full retrieved-chunk list
+and system prompt available via `--show-prompt`).
 
-<!-- The number you set in config.py, and how you got there.
+**My relevance cutoff:** `THRESHOLD = 0.65`, up from the starter's 0.6.
 
-     You ran five questions your corpus covers and the five in OUT_OF_SCOPE
-     that it clearly doesn't, and wrote down the best distance for each. What
-     did those two groups look like? Where was the gap? Put the actual numbers
-     here — the table below wants all ten rows.
+I ran all 5 `QUESTIONS` and all 5 `OUT_OF_SCOPE` questions through
+`python app.py retrieve "..."` against the freshly rebuilt 400/60 index and
+recorded the best distance each printed. The two groups didn't just avoid
+overlapping, they landed nowhere near each other: every in-corpus question's
+best chunk was under 0.48, every out-of-scope question's best chunk was over
+0.79 — a gap almost 0.32 wide with nothing in it. 0.65 sits close to the
+middle of that gap (`(0.479 + 0.799) / 2 ≈ 0.64`), giving roughly equal margin
+against a real question that retrieves worse than expected and against an
+off-topic question that happens to share more vocabulary with the corpus than
+these five did. The starter's default of 0.6 would have worked too — it also
+falls inside the gap — but 0.65 isn't riding the edge of either group.
 
-     Milestone 4. -->
+On top-k: `TOP_K` stayed at 5. Reading the three questions below (and the two
+not shown) at `top_k=5`, the correct chunk was always in position 1–3 when it
+appeared at all. The one exception — the Pellew Sands/Winter question — never
+surfaces its correct chunk (`guide_pellew_sands.md#5`, the one sentence that
+says "Winter is bleak, largely closed") even at `--top-k 10`; the slots that
+opened up going from 5 to 10 filled with progressively less relevant chunks
+instead. That's a ranking problem, not a top-k depth problem, so raising
+top-k bought nothing here and would only have diluted the other four
+questions with more borderline material.
 
 | Question | In corpus? | Best distance |
 |---|---|---|
-|  |  |  |
+| how do you get to Elder Ness | Yes | 0.318 |
+| what is there is eat in Halden Bay? | Yes | 0.320 |
+| what is there to see in Kestrelford | Yes | 0.383 |
+| what time of the year is Pellew Sands mostly closed? | Yes | 0.416 |
+| What region hub does every train go through | Yes | 0.479 |
+| What is the capital of Mongolia? | No | 0.799 |
+| How do I write a for loop in Rust? | No | 0.828 |
+| What is the recommended dosage of ibuprofen for a headache? | No | 0.839 |
+| How do I change the oil in a diesel engine? | No | 0.890 |
+| Who won the 1994 World Cup? | No | 0.903 |
 
 ## How I Used AI
 

@@ -23,8 +23,14 @@ For at least 4 of my 5 test questions, the retrieved chunks include one that
 contains the answer.
 
 **Why this target:**
-<!-- e.g. "One of my questions is about a topic only two documents mention, so
-     I expect that one to be hard." -->
+
+One of my five questions ("what time of the year is Pellew Sands mostly
+closed?") has its answer in a single sentence — "Winter is bleak, largely
+closed" — in `guide_pellew_sands.md`'s 6th chunk (`#5`). In Milestone 4
+testing, that specific chunk never appeared in the top 5 results, and raising
+`top_k` to 10 didn't surface it either; the top hit is always the document's
+opening chunk, which is topically close but doesn't contain the answer. That's
+the one I expect to miss, which is why the target is 4 of 5 and not 5 of 5.
 
 ---
 
@@ -33,8 +39,15 @@ contains the answer.
 Every answer the system produces names at least one source document.
 
 **Why this target:**
-<!-- Why all five and not four? What about your setup makes that achievable —
-     or what would have to go wrong for it not to be? -->
+
+Citation here isn't left to the model's judgment: `app.py::ask_pipeline`
+builds `outcome["sources"]` directly from the retrieved chunks' metadata
+(`Result.source`) regardless of what the model's text says, and the model is
+separately instructed by `GROUNDING_INSTRUCTION` in `generate.py` to name the
+file it used. A question only reaches the model at all once the relevance gate
+has passed, which means real chunk metadata always exists to cite by that
+point. Since the sources come from code, not model compliance, 5 of 5 is a
+target I can actually expect to hit rather than one I'm hoping for.
 
 ---
 
@@ -50,8 +63,17 @@ in at least 4 of 5 tries.
      just keep five of them, or the "4 of 5" above has nothing to be 4 of. -->
 
 **Why this target:**
-<!-- What did your distances look like when you set the cutoff in Milestone 4?
-     Was there a clean gap, or did the two groups overlap? -->
+
+Clean gap, no overlap. In Milestone 4 I ran all 5 `QUESTIONS` and all 5
+`OUT_OF_SCOPE` questions through retrieval: every in-corpus question's best
+chunk distance was under 0.48 (range 0.318–0.479), and every out-of-scope
+question's best distance was over 0.79 (range 0.799–0.903) — almost 0.32 of
+daylight between the two groups, with `THRESHOLD = 0.65` set near the middle
+of it. Given how wide that gap was, I'd expect all 5 out-of-scope questions to
+be refused reliably. I'm keeping the target at 4 of 5 rather than 5 of 5 as a
+small buffer against phrasing variation in future questions, not because I
+observed a specific failure — see README.md's "My relevance cutoff" section
+for the full table.
 
 ---
 
