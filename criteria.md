@@ -96,7 +96,7 @@ My retreived chunk sizes averages between 180 to 380 tokens.
 
 
 **Why this target:**
-<!-- I picked this range because from the slides, ~280 tokens was specified as the "Just right" value, I wanted there to be flexible lower and upper value so value that fits in this range will be valid-->
+I picked this range because from the slides, ~280 tokens was specified as the "Just right" value, I wanted there to be flexible lower and upper value so value that fits in this range will be valid
 
 
 

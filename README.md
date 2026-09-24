@@ -294,15 +294,199 @@ safe"; I left it at 5 and wrote the miss down as a ranking issue instead.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 3/5 | 3/5 | 3/5 | MISSED |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. My retreived chunk sizes averages between 180 to 380 tokens. | 5 of 5 | 0/5 | 0/5 | 0/5 | MISSED |
+| 5. When a question is asked about payment method accepted, 5 out of 5 answers should mention cash. | 5 of 5 | 4/5 | 4/5 | 4/5 | MISSED |
 
-<!-- Underneath, paste the REAL output for each criterion from one of your
-     runs — the actual text your system produced, not a description of it.
-     Name the file and function that produced it. -->
+Criterion 1 is retrieval, not the generated answer, so it's judged by whether
+one of the top-5 retrieved chunks contains the literal answer, not by whether
+`scorer.py` passed the final answer. Same 5 questions, checked against
+`my_runs/cs400_ov60.md` (top_k=5, current 400/60 chunking) and the source
+documents in `corpora/city_guides/documents/`:
+
+| Question | Answer in corpus | Retrieved? |
+|---|---|---|
+| how do you get to Elder Ness | "single road in, floods at highest spring tides... about two hours" (`guide_elder_ness.md`) | ✅ chunk 1, distance 0.318 |
+| what is there is eat in Halden Bay? | "harbour restaurants buy directly from boats that land in the early morning" (`guide_eating.md`) | ✅ chunk 2, distance 0.357 |
+| what is there to see in Kestrelford | "Everything is within a ten-minute walk of the market square" (`guide_kestrelford.md`) | ❌ not in top 5 — chunk 1 is the doc's opening ("Getting there") chunk; the market-square sentence is a later chunk that never surfaces |
+| what time of the year is Pellew Sands mostly closed? | "Winter is bleak, largely closed" (`guide_pellew_sands.md`) | ❌ not in top 5 — same failure mode: opening chunk (`#0`) and a later chunk (`#3`) win instead |
+| What region hub does every train go through | "Every railway line in the region meets here" (`guide_marchwood.md`) | ✅ chunk 1, distance 0.479 |
+
+3 of 5 against a target of 4 of 5. This is a real miss, not just the one
+`criteria.md` predicted (Pellew Sands) — Kestrelford misses for the identical
+reason: the fact-bearing chunk isn't the document's opening chunk, and the
+opening chunk keeps beating it on similarity.
+
+Produced by: retrieval config in `chunk_size_sweep.py` (city_guides corpus,
+CHUNK_SIZE=400/CHUNK_OVERLAP=60), raw chunk dump in `my_runs/cs400_ov60.md`.
+Criteria 2 and 3 evidence: `results/run_2026-09-23_1801_before.md`, produced by
+`run_eval.py::main` (criterion 2 — every "Real output" entry cites a source
+inline) and `run_eval.py::check_out_of_scope` (criterion 3 — "Refused 5 of 5").
+
+**Criterion 5** — measured with a new standalone script, `check_payment.py`.
+`QUESTIONS`/`OUT_OF_SCOPE` are already spoken for by criteria 1-3, so this
+asks five new town-specific payment questions (one per town already used in
+`QUESTIONS`) through the same retrieval → gate → `generate.py::answer_from_chunks`
+pipeline as `run_eval.py`, three times each, caching off, and checks for
+"cash" in the answer. Real output:
+
+```
+How do you pay for things in Elder Ness?
+  run 1: cash
+    Cash is still useful at markets and in smaller places, and cards are accepted almost everywhere now.
+
+    Source: `guide_elder_ness.md`
+
+How do you pay for things in Halden Bay?
+  run 1: no cash
+    I do not have enough information to answer how you pay for things in Halden Bay.
+
+    Source: guide_halden_bay.md, guide_eating.md, guide_regional_transport.md, guide_seasons.md
+  run 2: no cash
+    I do not have enough information to answer how you pay for things in Halden Bay.
+
+    Source: guide_halden_bay.md, guide_eating.md, guide_regional_transport.md, guide_seasons.md
+  run 3: no cash
+    I don't have enough information to answer how you pay for things in Halden Bay, as the provided documents do not mention payment methods.
+
+How do you pay for things in Kestrelford?
+  run 1: cash
+    Cash is still useful at markets and in smaller places, though cards are accepted almost everywhere now.
+
+    Source: guide_elder_ness.md
+
+How do you pay for things in Pellew Sands?
+  run 1: cash
+    According to `guide_halden_bay.md`, cash is still useful at the market and smaller places, though cards are accepted almost everywhere now.
+
+How do you pay for things in Marchwood?
+  run 1: cash
+    Based on the documents, cards are accepted almost everywhere now, though cash is still useful at the market and in smaller places (*guide_thornby_wells.md*).
+
+-> 4 of 5 questions mentioned cash in every run
+```
+
+4 of 5 against a target of 5 of 5 — MISSED, but by one question, and not by
+hallucination: Halden Bay's retrieved chunks don't actually contain a
+cash/payment sentence for that town (its own guide's chunks are about the
+harbour, parking, and fishing — the cash mention lives in `guide_eating.md`
+and other towns' guides), so the model correctly refuses rather than
+inventing a payment method. That's arguably the system working as intended
+(grounding held) even though the criterion's specific target was missed —
+the fix would be a retrieval/chunking one (surface Halden Bay's actual
+payment-relevant chunk, if one exists), not a generation one. Also worth
+noting: Elder Ness, Kestrelford, and Pellew Sands all answered by citing
+`guide_elder_ness.md` or `guide_halden_bay.md`'s cash sentence rather than
+their own town's guide — the underlying fact is a regional one repeated
+in `guide_eating.md`/`guide_thornby_wells.md`, not something unique to each
+town's own document, so the citation is technically correct but not always
+the town-specific source you'd expect.
+
+**Criterion 4** — measured with a new standalone script, `check_chunk_sizes.py`
+(retrieval only, via `store.py::search`; token count approximated as
+chars/4, since no tokenizer dependency exists in this repo). Deterministic
+like criteria 1 and 3, so one pass covers all three run columns. Real output:
+
+```
+Target: 180-380 tokens (approx, chars/4)
+
+how do you get to Elder Ness
+  chunks: [100, 100, 100, 100, 91]  avg=98.0  OUT OF RANGE
+
+what is there is eat in Halden Bay?
+  chunks: [100, 100, 100, 100, 100]  avg=100.0  OUT OF RANGE
+
+what is there to see in Kestrelford
+  chunks: [100, 100, 100, 74, 100]  avg=94.8  OUT OF RANGE
+
+what time of the year is Pellew Sands mostly closed?
+  chunks: [100, 100, 6, 100, 100]  avg=81.0  OUT OF RANGE
+
+What region hub does every train go through
+  chunks: [100, 100, 100, 100, 100]  avg=100.0  OUT OF RANGE
+
+-> 0 of 5 questions had an in-range average
+```
+
+0 of 5 against a target of 5 of 5 — MISSED, and not close. `CHUNK_SIZE = 400`
+in `config.py` is measured in **characters**, and 400 characters lands around
+100 tokens, not the ~280 tokens the 180-380 range assumes. The 400/60 setting
+was tuned in Milestone 3 against paragraph length in characters (city_guides'
+paragraphs average 233 chars), not against a token-count target — those two
+goals point in different directions, and retrieval quality was the one that
+won. Hitting 180-380 tokens would need `CHUNK_SIZE` closer to 700-1500
+characters, which would undo that Milestone 3 decision.
+
+### Real output
+
+**Criterion 1** — produced by the retrieval step in `run_eval.py::run_once`
+(`store.py::search`), raw dump in `my_runs/cs400_ov60.md`. The two misses,
+verbatim, top chunk returned for each:
+
+```
+## what is there to see in Kestrelford
+expects: market square
+
+[CHUNK 1 | cs400_ov60 | distance=0.3831 | source=guide_kestrelford.md#0]
+# Kestrelford
+
+Kestrelford is a hill town of 12,000, an hour inland from Brightwater. It has been a market town since the 1200s and the street plan has not meaningfully changed since. This is charming on foot and difficult in a car.
+
+## Getting there
+
+No railway station; the line was closed in 1963 and the trackbed is now a walking route. Buses run from Brightwater roughly hourly on weekdays, ever
+```
+
+```
+## what time of the year is Pellew Sands mostly closed?
+expects: Winter
+
+[CHUNK 1 | cs400_ov60 | distance=0.4162 | source=guide_pellew_sands.md#0]
+# Pellew Sands
+
+Pellew Sands is a Victorian seaside resort that has been through three distinct lives: fashionable, then neglected, and now something in between. The architecture is from the first period and much of the infrastructure from the second.
+
+## Getting there
+
+The branch line runs from the regional hub in 70 minutes, seven times a day, and the station is on the seafront, which is rare an
+```
+
+**Criterion 2** — produced by `run_eval.py::main` (`generate.py::answer_from_chunks`),
+`results/run_2026-09-23_1801_before.md`. Every answer names a source; two
+representative runs:
+
+```
+### how do you get to Elder Ness — run 1
+
+You get to Elder Ness by a single road, which floods at the highest spring tides roughly six times a year for about two hours either side of high water (from `guide_elder_ness.md`).
+```
+
+```
+### What region hub does every train go through — run 3
+
+Every railway line in the region meets at Marchwood, making it the regional hub.
+
+Source: `guide_marchwood.md`
+```
+
+**Criterion 3** — produced by `run_eval.py::check_out_of_scope` (`gate.py::check`),
+`results/run_2026-09-23_1801_before.md`:
+
+```
+## The relevance gate on out-of-corpus questions
+
+Produced by `run_eval.py::check_out_of_scope`, cutoff 0.65. Refused 5 of 5.
+
+| Out-of-scope question | Best distance | Gate |
+|---|---|---|
+| What is the capital of Mongolia? | 0.799 | refused |
+| How do I change the oil in a diesel engine? | 0.890 | refused |
+| Who won the 1994 World Cup? | 0.903 | refused |
+| What is the recommended dosage of ibuprofen for a headache? | 0.839 | refused |
+| How do I write a for loop in Rust? | 0.828 | refused |
+```
 
 ## Verdicts
 
@@ -317,11 +501,11 @@ safe"; I left it at 5 and wrote the miss down as a ranking issue instead.
 
 | # | Criterion | Verdict | How I decided |
 |---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+| 1 | Retrieved chunk contains the answer | MISSED | Compared the run log count against the target. |
+| 2 | Every answer names a source | MET | Compared the run log count against the target. |
+| 3 | Gate stops out-of-corpus questions | MET | Compared the run log count against the target. |
+| 4 | Chunk size averages 180-380 tokens | MISSED | Wrote a separate script to measure this, then compared its count against the target. |
+| 5 | Payment questions mention cash | MISSED | Wrote a separate script to measure this, then compared its count against the target. |
 
 ## Diagnoses
 
