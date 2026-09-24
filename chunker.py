@@ -22,10 +22,19 @@ to it, write down what you saw, and move on. That's a real observation about
 your pipeline, not giving up.
 """
 
+import re
 from dataclasses import dataclass
 
 import config
 from ingest import Document
+
+# Milestone 4 tuning: merge whole "## " sections up to MAX_CHARS before
+# starting a new chunk, so a chunk is never smaller than MIN_CHARS unless
+# it's the last one in the document. Chosen to land retrieved chunks in
+# criterion 4's 180-380 token range (roughly 720-1520 chars at ~4 chars/token
+# for this corpus's prose) while never cutting a section in half.
+MIN_CHARS = 700
+MAX_CHARS = 1500
 
 
 @dataclass
@@ -80,24 +89,78 @@ def fallback_split(
     return chunks
 
 
+def _title(text: str) -> str:
+    """The document's '# Heading' line, or '' if it doesn't have one."""
+    first_line = text.split("\n", 1)[0]
+    return first_line[2:].strip() if first_line.startswith("# ") else ""
+
+
+def _sections(text: str) -> list[str]:
+    """Split a document into its '## ' sections, dropping the title line."""
+    if text.startswith("# "):
+        text = text.split("\n", 1)[1] if "\n" in text else ""
+    parts = re.split(r"\n(?=## )", text.strip())
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _merge_sections(sections: list[str], min_chars: int, max_chars: int) -> list[str]:
+    """
+    Greedily pack whole sections into chunks, never splitting one in half.
+
+    Keeps adding sections to the current chunk while it stays under
+    max_chars. A section bigger than max_chars on its own still becomes its
+    own chunk rather than being cut mid-sentence.
+    """
+    merged: list[str] = []
+    current = ""
+    for section in sections:
+        candidate = f"{current}\n\n{section}" if current else section
+        if current and len(candidate) > max_chars and len(current) >= min_chars:
+            merged.append(current)
+            current = section
+        else:
+            current = candidate
+    if current:
+        merged.append(current)
+    return merged
+
+
 def split_documents(documents: list[Document]) -> list[Chunk]:
     """
-    Split documents into chunks. ⚠️ REPLACE THE BODY OF THIS IN MILESTONE 3.
+    Split on '## ' section boundaries instead of a fixed character count.
 
-    Right now it just calls the fallback. That is the plain, generic behaviour
-    the brief is talking about.
+    Milestone 3's `fallback_split` cuts mid-sentence and mid-word (its own
+    windows overlap by character count, not by meaning), and it also strips
+    a section's identity: only chunk #0 of a document contains that
+    document's own title, since the title only appears once at the top of
+    the file. That's why fixed-window chunks compete poorly against a
+    document's own opening chunk in retrieval — the opening chunk is the
+    only one that still says which town it's about.
 
-    When you write your own strategy, set `produced_by` to
-    "chunker.py::split_documents" so your README's Sample Chunks section names
-    the right function. `app.py chunks` prints that string for you.
-
-    Things worth thinking about before you write any code:
-      - Are your documents short posts or long guides?
-      - Is the useful information in one sentence, or spread over a paragraph?
-      - Would splitting on paragraph breaks keep more thoughts intact than
-        splitting on a character count?
+    This version splits on whole '## ' sections (never mid-sentence), merges
+    consecutive short sections up to MAX_CHARS so chunks land near
+    criterion 4's token target, and prepends the document's title to every
+    chunk so none of them lose their subject.
     """
-    return fallback_split(documents)
+    chunks: list[Chunk] = []
+    for doc in documents:
+        title = _title(doc.text)
+        sections = _sections(doc.text)
+        if not sections:
+            continue
+
+        for index, body in enumerate(_merge_sections(sections, MIN_CHARS, MAX_CHARS)):
+            text = f"# {title}\n\n{body}" if title else body
+            chunks.append(
+                Chunk(
+                    text=text,
+                    source=doc.source,
+                    index=index,
+                    produced_by="chunker.py::split_documents",
+                )
+            )
+
+    return chunks
 
 
 def describe(chunks: list[Chunk]) -> str:

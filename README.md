@@ -553,34 +553,70 @@ on the wrong unit for what the criterion asks.
 
 ## The Improvement
 
-**What I changed:**
+**What I changed:** Replaced `chunker.py::split_documents`'s body — it used
+to just call `fallback_split` (fixed 400/60-character windows). Now it
+splits on whole `## ` section boundaries (never mid-sentence), merges
+consecutive short sections up to ~1500 characters so chunks land near
+criterion 4's token target, and prepends the document's `# Title` to every
+chunk.
 
-**Why I picked it:**
-
-<!-- Connect it to a specific diagnosis above in one sentence. If you can't,
-     you picked a fix because it sounded impressive. -->
+**Why I picked it:** Directly targets the mechanism from Diagnoses — a fact
+chunk losing to a document's own generic opening chunk, because only that
+opening chunk still contained the document's title after a fixed-window
+split stripped it out of every later piece.
 
 ### Run Log — After
 
-<!-- Same format, same five criteria, three runs each.
-     `python run_eval.py --label after` -->
+`python run_eval.py --label after` → `results/run_2026-09-23_1847_after.md`;
+criterion 4 via `check_chunk_sizes.py`; criterion 5 via `check_payment.py`.
+Same index rebuilt with the new `split_documents`.
 
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 4/5 | 4/5 | 4/5 | MISSED |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Chunk size averages 180-380 tokens | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 5. Payment questions mention cash | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
 
-**Did it help?**
+Real output — the two questions that flipped, and the one that broke:
 
-<!-- Say plainly whether it did, and how you know. If it made things worse,
-     say that — a change that backfired, honestly reported, earns full credit
-     and is more interesting than one that worked. What matters is that you can
-     tell.
+```
+### what is there to see in Kestrelford — run 1
+Based on the provided documents, what there is to see in Kestrelford includes:
+- The market square on a Saturday morning, which has run continuously since the 1400s (guide_kestrelford.md).
+- The parish church, which features a 13th-century tower you can climb for £2 (guide_kestrelford.md).
+- The old trackbed walk, which runs six miles to the next village along an easy gradient (guide_kestrelford.md).
+```
 
-     Milestone 4. -->
+```
+### what time of the year is Pellew Sands mostly closed? — run 1
+According to `guide_pellew_sands.md`, winter is the time of year when Pellew Sands is largely closed.
+```
+
+```
+### What region hub does every train go through — run 1
+Best distance: 0.7098 (refused by the gate)
+I don't have enough information about that.
+```
+
+**Did it help?** Mostly, but it broke something else. Criteria 1, 4, and 5
+all flipped from MISSED to MET — the merged, title-prefixed chunks are
+exactly what surfaced Kestrelford's market square and Pellew Sands' winter
+closure in the top 5, fixing the two questions Diagnoses named. But
+criterion 2 flipped from MET (5/5) to MISSED (4/5): "What region hub does
+every train go through" used to pass easily (distance 0.479) because its
+answer sat alone in a small chunk; now that chunk is merged with two
+unrelated sections ("Getting around", "Eat and drink"), and the extra text
+pulls its distance to 0.725 — over the 0.65 gate threshold — so a real
+in-corpus question now gets refused outright, with no source to cite. The
+fact is still in the retrieved chunk (confirmed directly), so the miss isn't
+retrieval failing to find it, it's a side effect of MAX_CHARS=1500 letting
+enough unrelated material into one chunk to tip a previously-easy pass over
+the gate's cutoff. Net effect: a real improvement, not a wash — before, two
+questions failed outright (Kestrelford, Pellew Sands); after, only one does
+(region hub) — but it's a genuine new regression, not a clean win, and worth
+fixing before calling this done (see What's Still Broken).
 
 ## What's Still Broken
 
