@@ -509,23 +509,47 @@ Produced by `run_eval.py::check_out_of_scope`, cutoff 0.65. Refused 5 of 5.
 
 ## Diagnoses
 
-<!-- For each miss: which stage caused it, and how. The stage alone isn't
-     enough — you need the mechanism.
+**Criterion 1 — Kestrelford ("what is there to see")**
+**Stage: retrieval.** The chunk that actually contains "market square"
+(`guide_kestrelford.md#3`) doesn't even place in the top 20 results for this
+query — I checked. Instead, the document's own opening chunk (`#0`, generic
+town description) ranks first at distance 0.383, and the next four slots go
+to thematically-adjacent chunks from *other* documents (`guide_seasons.md`,
+`guide_accessibility.md`). The embedding favors broad topical similarity over
+the chunk that names the specific sight.
 
-     Not a diagnosis: "Question 3 didn't work."
-     A diagnosis:     "Question 3 asks about laundry costs. The answer is in
-                       one sentence that got split across two chunks, so
-                       neither chunk on its own contains it."
+**Criterion 1 — Pellew Sands ("what time of year is mostly closed")**
+**Stage: retrieval.** The "Winter is bleak, largely closed" sentence lives in
+`guide_pellew_sands.md#5`, which ranks 18th of 20 at distance 0.626 — barely
+inside a top-20 window, nowhere near top-5. I'd already tested this at
+`top_k=10` in Milestone 4 and it still didn't surface; checking to rank 20
+now confirms it isn't a top_k tuning problem, it's a hard ranking loss.
 
-     The five stages: loading → chunking → embedding → retrieval → generation.
+**Criterion 5 — Halden Bay ("how do you pay")**
+**Stage: retrieval**, same mechanism. `guide_halden_bay.md`'s own cash
+sentence (`#5`) does exist and does get embedded reasonably (distance
+0.607) — but it ranks 11th, pushed out of `top_k=5` by the document's
+opening chunk (0.441) and two other documents' loosely-related chunks about
+eating and transport (0.442, 0.483). The model then correctly refused rather
+than hallucinating, which is why this looked like a generation problem at
+first but isn't one.
 
-     Look for a pattern. If three misses all ask about numbers, that's one
-     problem, not three.
+**Pattern:** all three misses share one mechanism, not three separate ones —
+a chunk containing a specific fact consistently loses the similarity race to
+(a) that document's own broad, generic opening chunk, and (b) other
+documents' chunks that are topically adjacent but don't contain the answer.
+`top_k=5` isn't generous enough to reach past that, and for Kestrelford even
+`top_k=20` wasn't. This points at retrieval ranking (the embedding model /
+similarity metric), not at chunking or a `top_k` tuning issue.
 
-     Missed nothing? Say so, then say honestly whether your targets were set
-     low, and which one you'd tighten and to what.
-
-     Milestone 3. -->
+**Criterion 4 — chunk size**
+**Stage: chunking**, a different mechanism entirely. `CHUNK_SIZE=400` in
+`config.py` is a character count, tuned in Milestone 3 against paragraph
+length in characters (city_guides paragraphs average 233 chars). But
+criterion 4's target (180-380 tokens) is a token count, and 400 characters
+of this corpus's prose measures out to roughly 100 tokens — nowhere close.
+This isn't a ranking or embedding issue at all; the chunks are simply sized
+on the wrong unit for what the criterion asks.
 
 ## The Improvement
 
