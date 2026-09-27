@@ -267,6 +267,14 @@ didn't appear — the extra slots filled with progressively less relevant
 material instead. That result is what kept me from bumping `TOP_K` up "to be
 safe"; I left it at 5 and wrote the miss down as a ranking issue instead.
 
+**3.** Described the pattern across my misses and asked Claude for the
+mechanism, not a fix. It checked full top-20 rankings instead of guessing,
+which is how I found Kestrelford's chunk wasn't even in the top 20 and
+Halden Bay's cash chunk ranked 11th — evidence that chunks were losing their
+document identity after splitting. That's what the Milestone 4 fix targeted.
+Also had it write `check_chunk_sizes.py` and `check_payment.py` once we
+agreed criteria 4 and 5 didn't belong in `run_eval.py`/`scorer.py`.
+
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
      claims earns nothing.
@@ -620,17 +628,22 @@ fixing before calling this done (see What's Still Broken).
 
 ## What's Still Broken
 
-<!-- For each criterion still missed after your fix: what you'd do about it,
-     and why you stopped where you did.
-
-     "I ran out of time" is fine if it's true. Pretending nothing is left is
-     not.
-
-     Milestone 5. -->
+Criterion 2 — 4/5, was 5/5 before the fix. Merging Marchwood's answer section
+with two unrelated ones pushed its distance from 0.479 to 0.725, over the
+0.65 gate cutoff, so a real question now gets refused. Fix would be a
+smaller `MAX_CHARS` so fewer sections merge — but that fights criterion 4's
+token target directly, and tuning it properly needs its own sweep like
+`CHUNK_SIZE` got in Milestone 3. Out of scope for a one-change milestone, so
+I left it.
 
 ## What I'd Do Differently
 
-<!-- Knowing what you know now — which of your five criteria would you write
-     differently, and why?
-
-     Milestone 5. -->
+- Criterion 1: tighten to top 3, not top 5 — both real misses landed at rank
+  1-2 once fixed, so top 5 was too loose to mean anything.
+- Criterion 3: tighten to 5/5 — hit it clean both times with a wide margin,
+  so 4/5 wasn't a real risk.
+- Criterion 4: write the target in characters, not tokens — that's the unit
+  `CHUNK_SIZE` actually uses, and I had to build a whole script just to
+  convert.
+- Criterion 5: write its test question into `QUESTIONS` from the start
+  instead of bolting on a separate script later.
